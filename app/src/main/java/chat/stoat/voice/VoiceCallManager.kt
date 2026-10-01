@@ -66,6 +66,16 @@ object VoiceCallManager {
 
     var isSheetVisible: Boolean by mutableStateOf(false)
 
+    /** True while the phone's own audio is being shared alongside the screen. */
+    var isSharingScreenAudio: Boolean by mutableStateOf(false)
+        private set
+
+    /** While sharing screen audio, mute affects only the voice, not the shared audio. */
+    var isVoiceMuted: Boolean by mutableStateOf(false)
+        private set
+
+    private val screenAudio = ScreenShareAudio()
+
     var requestedChannelId: String? by mutableStateOf(null)
         private set
 
@@ -142,6 +152,9 @@ object VoiceCallManager {
         errorResource = null
         isDeafened = false
         micWasOnBeforeDeafen = false
+        screenAudio.stop()
+        isSharingScreenAudio = false
+        isVoiceMuted = false
 
         if (leftRoom != null) {
             if (hasPlayedJoinSound && !hasPlayedLeaveSound) {
@@ -158,6 +171,12 @@ object VoiceCallManager {
 
     fun toggleMicrophone() {
         val room = room ?: return
+        if (isSharingScreenAudio) {
+            // Keep the track live so the shared phone audio keeps flowing.
+            setVoiceMuted(!isVoiceMuted)
+            soundPlayer?.play(if (isVoiceMuted) VoiceSound.MUTE else VoiceSound.UNMUTE)
+            return
+        }
         val isMicOn = room.localParticipant.isMicrophoneEnabled
         soundPlayer?.play(if (isMicOn) VoiceSound.MUTE else VoiceSound.UNMUTE)
         scope.launch {
@@ -169,19 +188,78 @@ object VoiceCallManager {
         val room = room ?: return
         if (!isDeafened) {
             soundPlayer?.play(VoiceSound.DEAFEN)
-            micWasOnBeforeDeafen = room.localParticipant.isMicrophoneEnabled
             isDeafened = true
             applyDeafenState(room)
-            scope.launch {
-                room.localParticipant.setMicrophoneEnabled(false)
+            if (isSharingScreenAudio) {
+                micWasOnBeforeDeafen = !isVoiceMuted
+                setVoiceMuted(true)
+            } else {
+                micWasOnBeforeDeafen = room.localParticipant.isMicrophoneEnabled
+                scope.launch {
+                    room.localParticipant.setMicrophoneEnabled(false)
+                }
             }
         } else {
             soundPlayer?.play(VoiceSound.UNDEAFEN)
             isDeafened = false
             applyDeafenState(room)
-            if (micWasOnBeforeDeafen) {
+            if (isSharingScreenAudio) {
+                setVoiceMuted(!micWasOnBeforeDeafen)
+            } else if (micWasOnBeforeDeafen) {
                 scope.launch {
                     room.localParticipant.setMicrophoneEnabled(true)
+                }
+            }
+        }
+    }
+
+    private fun setVoiceMuted(muted: Boolean) {
+        isVoiceMuted = muted
+        screenAudio.voiceMuted = muted
+    }
+
+    /**
+     * Applies the chosen quality before a screen share is published
+     * (LiveKit reads these defaults when it creates the share track).
+     */
+    fun prepareScreenShare(quality: ScreenShareQuality) {
+        room?.let { quality.applyTo(it) }
+    }
+
+    /** Starts mixing phone audio into the call; call after the share is published. */
+    fun startScreenAudio() {
+        val room = room ?: return
+        if (!ScreenShareSettings.canShareAudio(context)) return
+        scope.launch {
+            try {
+                // The phone audio rides on the voice track, so it must be live.
+                // If the user was muted, keep the voice muted but the track on.
+                val wasMicOn = room.localParticipant.isMicrophoneEnabled
+                if (!wasMicOn) room.localParticipant.setMicrophoneEnabled(true)
+                if (screenAudio.start(room)) {
+                    isSharingScreenAudio = true
+                    setVoiceMuted(!wasMicOn || isDeafened)
+                } else if (!wasMicOn) {
+                    room.localParticipant.setMicrophoneEnabled(false)
+                }
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR) { "Could not start screen audio\n" + e.asLog() }
+            }
+        }
+    }
+
+    /** Stops phone-audio sharing and restores the normal mute state. */
+    private fun stopScreenAudio(room: Room?) {
+        if (!isSharingScreenAudio) return
+        val voiceWasMuted = isVoiceMuted
+        screenAudio.stop()
+        isSharingScreenAudio = false
+        isVoiceMuted = false
+        if (voiceWasMuted && room != null) {
+            scope.launch {
+                try {
+                    room.localParticipant.setMicrophoneEnabled(false)
+                } catch (_: Exception) {
                 }
             }
         }
@@ -261,6 +339,8 @@ object VoiceCallManager {
                 if (isSharing && !previous) soundPlayer?.play(VoiceSound.STREAM_START)
                 if (!isSharing && previous) soundPlayer?.play(VoiceSound.STREAM_END)
             }
+            // However the share ended (button, system "stop" chip, disconnect).
+            if (!isSharing) stopScreenAudio(room)
             wasSharing = isSharing
         }
     }

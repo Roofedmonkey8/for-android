@@ -60,7 +60,8 @@ android {
     namespace = "chat.stoat"
 
     defaultConfig {
-        applicationId = "chat.revolt"
+        // Fork: its own ID so it installs alongside the official Stoat app.
+        applicationId = "io.github.roofedmonkey8.stoatplus"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = Integer.parseInt("001_008_001".replace("_", ""), 10)
@@ -72,8 +73,23 @@ android {
         }
     }
 
+    // Fork: sign release builds with FORK_KEYSTORE env vars when present
+    // (stable key, updates install over each other), else the debug key.
+    val forkKeystore = System.getenv("FORK_KEYSTORE")
+    signingConfigs {
+        if (forkKeystore != null) {
+            create("fork") {
+                storeFile = file(forkKeystore)
+                storePassword = System.getenv("FORK_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("FORK_KEY_ALIAS")
+                keyPassword = System.getenv("FORK_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName(if (forkKeystore != null) "fork" else "debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

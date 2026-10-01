@@ -1,0 +1,92 @@
+name: Build Stoat+ APK
+
+# Builds the fork and publishes every main-branch build as a GitHub release
+# with an installable APK (handy for downloading straight to a phone).
+
+on:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      HAS_SIGNING_KEY: ${{ secrets.FORK_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Build configuration
+        run: |
+          # Placeholder Firebase config for the fork's package names. Push
+          # notifications from Stoat's servers need Stoat's own Firebase
+          # project, so they don't reach a fork; everything else works.
+          sed -e 's/"chat.revolt.debug"/"io.github.roofedmonkey8.stoatplus.debug"/' \
+              -e 's/"chat.revolt"/"io.github.roofedmonkey8.stoatplus"/' \
+              app/google-services.json.example > app/google-services.json
+          cat > stoatbuild.properties <<'EOF'
+          sentry.dsn=
+          sentry.upload_mappings=false
+          build.debug.app_name=Stoat+ Debug
+          build.flavour_id=fork
+          EOF
+          sed -i 's/^[[:space:]]*//' stoatbuild.properties
+
+      - name: Release signing key (optional)
+        if: env.HAS_SIGNING_KEY == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.FORK_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/fork.jks"
+          echo "FORK_KEYSTORE=$RUNNER_TEMP/fork.jks" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        env:
+          FORK_KEYSTORE_PASSWORD: ${{ secrets.FORK_KEYSTORE_PASSWORD }}
+          FORK_KEY_ALIAS: ${{ secrets.FORK_KEY_ALIAS }}
+          FORK_KEY_PASSWORD: ${{ secrets.FORK_KEY_PASSWORD }}
+        run: |
+          set +e
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleRelease 2>&1 | tee gradle.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" != 0 ]; then
+            # Surface the real errors as annotations (readable without raw logs).
+            grep -E "^e: |error:|What went wrong|^> |Caused by|FAILED|Exception" gradle.log | grep -v "^> Task" | head -30 | while IFS= read -r line; do
+              echo "::error::${line:0:900}"
+            done
+          fi
+          exit $status
+
+      - name: Rename
+        run: cp app/build/outputs/apk/release/app-release.apk stoat-plus.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stoat-plus-apk
+          path: stoat-plus.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Stoat+ (build ${{ github.run_number }})
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            Download **stoat-plus.apk** below and open it on your phone to install.
+            It installs next to the official Stoat app.
+          files: stoat-plus.apk

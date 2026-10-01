@@ -102,7 +102,9 @@ fun VoiceSheet(onDisconnect: () -> Unit) {
 
     CompositionLocalProvider(RoomLocal provides room) {
         val roomState by room::state.flow.collectAsState()
-        val isMicOn by room.localParticipant::isMicrophoneEnabled.flow.collectAsState()
+        val isMicTrackOn by room.localParticipant::isMicrophoneEnabled.flow.collectAsState()
+        // While phone audio is shared the track stays live; mute affects only the voice.
+        val isMicOn = if (VoiceCallManager.isSharingScreenAudio) !VoiceCallManager.isVoiceMuted else isMicTrackOn
         val isCameraOn by room.localParticipant::isCameraEnabled.flow.collectAsState()
         val isScreenShared by room.localParticipant::isScreenShareEnabled.flow.collectAsState()
         val activeSpeakers by room::activeSpeakers.flow.collectAsState()
@@ -322,6 +324,10 @@ fun VoiceSheet(onDisconnect: () -> Unit) {
                 }
             }
 
+            // Screen-share options (quality, phone audio) chosen before the system prompt.
+            var showShareOptions by remember { mutableStateOf(false) }
+            var shareAudioRequested by remember { mutableStateOf(false) }
+
             // the prompt where you select whether you want to share a single app or the whole screen
             val screenCaptureLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.StartActivityForResult()
@@ -335,6 +341,9 @@ fun VoiceSheet(onDisconnect: () -> Unit) {
                                 ScreenCaptureParams(data)
                             )
                             logcat { "Screen share enable result: $published" }
+                            if (published && shareAudioRequested) {
+                                VoiceCallManager.startScreenAudio()
+                            }
                         } catch (e: Exception) {
                             logcat(LogPriority.ERROR) {
                                 "Could not start screen share\n" + e.asLog()
@@ -347,6 +356,21 @@ fun VoiceSheet(onDisconnect: () -> Unit) {
                                 "(resultCode ${result.resultCode}, data $data)"
                     }
                 }
+            }
+
+            if (showShareOptions) {
+                ScreenShareOptionsDialog(
+                    onDismiss = { showShareOptions = false },
+                    onStart = { quality, shareAudio ->
+                        showShareOptions = false
+                        shareAudioRequested = shareAudio
+                        VoiceCallManager.prepareScreenShare(quality)
+                        context.getSystemService(MediaProjectionManager::class.java)
+                            ?.let { manager ->
+                                screenCaptureLauncher.launch(manager.createScreenCaptureIntent())
+                            }
+                    },
+                )
             }
 
             var toolbarExpanded by remember { mutableStateOf(false) }
@@ -462,12 +486,7 @@ fun VoiceSheet(onDisconnect: () -> Unit) {
                                         room.localParticipant.setScreenShareEnabled(false)
                                     }
                                 } else {
-                                    context.getSystemService(MediaProjectionManager::class.java)
-                                        ?.let { manager ->
-                                            screenCaptureLauncher.launch(
-                                                manager.createScreenCaptureIntent()
-                                            )
-                                        }
+                                    showShareOptions = true
                                 }
                             }
                     )

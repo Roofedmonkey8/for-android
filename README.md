@@ -1,3 +1,15 @@
+> **Stoat+** — an unofficial fork of Stoat for Android with better screen sharing.
+> It installs alongside the official app and works with any Stoat server.
+>
+> - **Quality picker** when you start a share: 720p30, 1080p30, 1080p60 or native resolution at 60 fps
+>   (upstream always shares at 720p30), encoded with the phone's hardware H.264 encoder.
+> - **Share phone audio** (game or video sound) along with the screen. While it's on, mute silences
+>   only your voice, not the shared audio.
+> - Every push builds an installable APK under **Releases** (`.github/workflows/fork-apk.yml`).
+>
+> Push notifications don't reach the fork (they're tied to Stoat's own Firebase project).
+> Licensed AGPL-3.0, like upstream.
+
 <div align="center">
     <h1>Stoat for Android</h1>
     <p>Official <a href="https://stoat.chat">Stoat</a> Android app.</p>

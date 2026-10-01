@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name" translatable="false">Stoat</string>
+    <string name="app_name" translatable="false">Stoat+</string>
 
     <string name="back">← Back</string>
     <string name="next">Next →</string>
@@ -1375,4 +1375,19 @@
     <string name="server_context_sheet_actions_add_to_folder">Add to folder</string>
     <string name="server_context_sheet_actions_new_folder">New folder</string>
     <string name="server_context_sheet_actions_remove_from_folder">Remove from folder</string>
+
+    <!-- Fork: screen-share quality and phone audio -->
+    <string name="screenshare_options_title">Share your screen</string>
+    <string name="screenshare_quality_720_30">720p · 30 fps</string>
+    <string name="screenshare_quality_720_30_desc">Light on data and battery</string>
+    <string name="screenshare_quality_1080_30">1080p · 30 fps</string>
+    <string name="screenshare_quality_1080_30_desc">Sharp text and video</string>
+    <string name="screenshare_quality_1080_60">1080p · 60 fps</string>
+    <string name="screenshare_quality_1080_60_desc">Smooth games (needs good upload)</string>
+    <string name="screenshare_quality_native_60">Native · 60 fps</string>
+    <string name="screenshare_quality_native_60_desc">Full screen resolution (strongest upload)</string>
+    <string name="screenshare_share_audio">Share phone audio</string>
+    <string name="screenshare_share_audio_desc">Others hear your game or video. Mute still silences only your voice.</string>
+    <string name="screenshare_share_audio_unavailable">Needs Android 10+ and microphone permission</string>
+    <string name="screenshare_start">Start sharing</string>
 </resources>
