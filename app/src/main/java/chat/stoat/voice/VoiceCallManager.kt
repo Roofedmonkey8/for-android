@@ -173,7 +173,7 @@ object VoiceCallManager {
         val room = room ?: return
         if (isSharingScreenAudio) {
             // Keep the track live so the shared phone audio keeps flowing.
-            setVoiceMuted(!isVoiceMuted)
+            applyVoiceMute(!isVoiceMuted)
             soundPlayer?.play(if (isVoiceMuted) VoiceSound.MUTE else VoiceSound.UNMUTE)
             return
         }
@@ -192,7 +192,7 @@ object VoiceCallManager {
             applyDeafenState(room)
             if (isSharingScreenAudio) {
                 micWasOnBeforeDeafen = !isVoiceMuted
-                setVoiceMuted(true)
+                applyVoiceMute(true)
             } else {
                 micWasOnBeforeDeafen = room.localParticipant.isMicrophoneEnabled
                 scope.launch {
@@ -204,7 +204,7 @@ object VoiceCallManager {
             isDeafened = false
             applyDeafenState(room)
             if (isSharingScreenAudio) {
-                setVoiceMuted(!micWasOnBeforeDeafen)
+                applyVoiceMute(!micWasOnBeforeDeafen)
             } else if (micWasOnBeforeDeafen) {
                 scope.launch {
                     room.localParticipant.setMicrophoneEnabled(true)
@@ -213,7 +213,7 @@ object VoiceCallManager {
         }
     }
 
-    private fun setVoiceMuted(muted: Boolean) {
+    private fun applyVoiceMute(muted: Boolean) {
         isVoiceMuted = muted
         screenAudio.voiceMuted = muted
     }
@@ -238,7 +238,7 @@ object VoiceCallManager {
                 if (!wasMicOn) room.localParticipant.setMicrophoneEnabled(true)
                 if (screenAudio.start(room)) {
                     isSharingScreenAudio = true
-                    setVoiceMuted(!wasMicOn || isDeafened)
+                    applyVoiceMute(!wasMicOn || isDeafened)
                 } else if (!wasMicOn) {
                     room.localParticipant.setMicrophoneEnabled(false)
                 }
