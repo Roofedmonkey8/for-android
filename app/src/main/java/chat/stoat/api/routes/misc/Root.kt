@@ -38,12 +38,21 @@ data class LimitsConfig(
 @Serializable
 data class GlobalLimits(
     @SerialName("server_emoji") val serverEmoji: Int,
+    @SerialName("new_user_hours") val newUserHours: Int = 72,
 )
 
 @Serializable
 data class UserLimits(
     @SerialName("file_upload_size_limits")
     val fileUploadSizeLimits: Map<String, Long> = emptyMap(),
+    /** Whether video (camera / screen share) is allowed in voice calls. */
+    val video: Boolean = true,
+    /**
+     * Largest video the server accepts, as [width, height]. The server compares
+     * pixel area and removes the user from the call if a track is bigger.
+     * [0, 0] means unlimited.
+     */
+    @SerialName("video_resolution") val videoResolution: List<Long> = emptyList(),
 )
 
 @Serializable

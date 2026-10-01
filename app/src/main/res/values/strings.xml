@@ -1390,4 +1390,5 @@
     <string name="screenshare_share_audio_desc">Others hear your game or video. Mute still silences only your voice.</string>
     <string name="screenshare_share_audio_unavailable">Needs Android 10+ and microphone permission</string>
     <string name="screenshare_start">Start sharing</string>
+    <string name="screenshare_server_limit">This server caps video size, so you\'ll share at %1$d×%2$d. Server admins can raise video_resolution in Revolt.toml.</string>
 </resources>

@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import chat.stoat.R
 import chat.stoat.voice.ScreenShareQuality
+import chat.stoat.voice.VoiceCallManager
 import chat.stoat.voice.ScreenShareSettings
 
 /** Lets the user pick screen-share quality and whether to include phone audio. */
@@ -71,6 +72,16 @@ fun ScreenShareOptionsDialog(
                             }
                         }
                     }
+                }
+                val limit = VoiceCallManager.videoPixelLimit
+                if (quality.limitedBy(limit, context)) {
+                    val (long, short) = quality.captureSize(context, limit)
+                    Text(
+                        stringResource(R.string.screenshare_server_limit, long, short),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

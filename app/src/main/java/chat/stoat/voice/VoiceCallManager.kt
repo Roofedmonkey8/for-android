@@ -8,6 +8,7 @@ import chat.stoat.R
 import chat.stoat.StoatApplication
 import chat.stoat.api.StoatAPI
 import chat.stoat.api.internals.ChannelUtils
+import chat.stoat.api.internals.ULID
 import chat.stoat.api.routes.misc.LiveKitNode
 import chat.stoat.api.routes.misc.Root
 import chat.stoat.api.routes.misc.getRootRoute
@@ -75,6 +76,13 @@ object VoiceCallManager {
         private set
 
     private val screenAudio = ScreenShareAudio()
+
+    /**
+     * Largest screen-share pixel area this server allows the current user
+     * (0 = unlimited). Exceeding it gets the user kicked from the call.
+     */
+    var videoPixelLimit: Long by mutableStateOf(0L)
+        private set
 
     var requestedChannelId: String? by mutableStateOf(null)
         private set
@@ -223,8 +231,25 @@ object VoiceCallManager {
      * (LiveKit reads these defaults when it creates the share track).
      */
     fun prepareScreenShare(quality: ScreenShareQuality) {
-        room?.let { quality.applyTo(it) }
+        room?.let { quality.applyTo(it, context, videoPixelLimit) }
     }
+
+    /** Mirrors the server's own rule: accounts younger than new_user_hours get the new_user limits. */
+    private fun videoPixelLimitFor(root: Root): Long {
+        val limits = root.features.limits ?: return DEFAULT_PIXEL_LIMIT
+        val selfId = StoatAPI.selfId
+        val ageMs = selfId?.let {
+            runCatching { System.currentTimeMillis() - ULID.asTimestamp(it) }.getOrNull()
+        }
+        val isNew = ageMs == null || ageMs <= limits.global.newUserHours * 3_600_000L
+        val user = (if (isNew) limits.newUser else limits.defaultUser) ?: limits.defaultUser
+        val res = user?.videoResolution ?: return DEFAULT_PIXEL_LIMIT
+        if (res.size < 2) return DEFAULT_PIXEL_LIMIT
+        return if (res[0] == 0L || res[1] == 0L) 0L else res[0] * res[1]
+    }
+
+    /** Used when the server doesn't report limits: Stoat's stock new-user limit. */
+    private const val DEFAULT_PIXEL_LIMIT = 1080L * 720L
 
     /** Starts mixing phone audio into the call; call after the share is published. */
     fun startScreenAudio() {
@@ -389,6 +414,8 @@ object VoiceCallManager {
             errorResource = R.string.voice_error_generic
             return null
         }
+
+        videoPixelLimit = videoPixelLimitFor(root)
 
         val lk = root.features.livekit
 
