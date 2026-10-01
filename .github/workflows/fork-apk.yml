@@ -27,10 +27,8 @@ jobs:
           java-version: "21"
           cache: gradle
 
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: "platform-tools platforms;android-37"
-
+      # The runner image ships the Android SDK (ANDROID_HOME); Gradle
+      # downloads any missing platform on its own.
       - name: Build configuration
         run: |
           # Placeholder Firebase config for the fork's package names. Push
